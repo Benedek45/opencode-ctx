@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "exactOptionalPropertyTypes": false,
+    "lib": ["ES2022"]
+  },
+  "include": [
+    "types/**/*.ts",
+    "services/**/*.ts",
+    "core/**/*.ts",
+    "__tests__/**/*.ts",
+    "adapters/**/*.ts",
+    "migration/**/*.ts",
+    "index.ts",
+    "bun-types.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

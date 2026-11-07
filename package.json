@@ -1,0 +1,64 @@
+{
+  "name": "opencode-ctx",
+  "version": "1.0.0",
+  "description": "OpenCode 2 context-management plugin: HOT/WARM/COLD compression tiers, model-driven compress tools, mechanical tool-output pruning, durable archives, and a local dashboard",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "context-management",
+    "context-compression",
+    "context-pruning",
+    "llm",
+    "agents"
+  ],
+  "homepage": "https://github.com/Benedek45/opencode-ctx#readme",
+  "bugs": {
+    "url": "https://github.com/Benedek45/opencode-ctx/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Benedek45/opencode-ctx.git"
+  },
+  "type": "module",
+  "main": "./dist/adapters/opencode-v2/server.js",
+  "types": "./dist/adapters/opencode-v2/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/adapters/opencode-v2/server.d.ts",
+      "import": "./dist/adapters/opencode-v2/server.js"
+    },
+    "./lib": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./opencode-v2/lib": {
+      "types": "./dist/adapters/opencode-v2/index.d.ts",
+      "import": "./dist/adapters/opencode-v2/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "node node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json",
+    "compile": "node node_modules/typescript/lib/tsc.js -p tsconfig.build.json"
+  },
+  "bin": {
+    "ctx-migrate": "./dist/migration/cli.js"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/tokenizer": "^0.0.4"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "2.0.29",
+    "@types/node": "^25.9.3",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0"
+}
