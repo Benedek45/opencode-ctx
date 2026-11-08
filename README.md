@@ -1,9 +1,18 @@
 # opencode-ctx
 
 Context management for long [OpenCode 2](https://opencode.ai) sessions. The plugin
-keeps the model's context window small and dense without losing anything: old work
-is summarized into reversible compression blocks, large stale tool outputs are
-pruned mechanically, and every original is archived so it can be restored exactly.
+keeps active context focused with reversible summaries and mechanical pruning of
+stale tool outputs. Compression sources are archived for recovery on disk;
+summaries can omit details. The model sees HOT content, WARM summaries and a COLD
+catalog, and archive search searches summaries rather than original sources.
+
+## Status / evaluation
+
+The release suite has no known failing tests. No task-level A/B benchmark against
+native OpenCode compaction has been published yet. The optional summary worker is
+validated with mocked lifecycle tests, not a live quality benchmark. For a
+controlled trial, pin a release and compare identical tasks/models with and without
+the plugin. See [CHANGELOG.md](CHANGELOG.md) for v1.0.1 fixes.
 
 ## Features
 
@@ -51,7 +60,7 @@ opencode plugin add github:Benedek45/opencode-ctx
 To pin a release, add the tag:
 
 ```sh
-opencode plugin add github:Benedek45/opencode-ctx#v1.0.0
+opencode plugin add github:Benedek45/opencode-ctx#v1.0.1
 ```
 
 The compiled plugin is committed in `dist/`, so no build step runs during install.
@@ -778,9 +787,32 @@ bun run typecheck           # zero errors (tsc --noEmit)
 bun run compile             # emit ESM JavaScript + declarations to dist/
 ```
 
-Four tests currently fail on `main` and are known issues: two nudge-escalation
-masking tests and two compression-eligibility tests (summary-root candidates and
-stale-index coverage).
+The full release suite, strict typecheck and compiled distribution checks pass.
+
+### v1.0.1 behavior and recovery notes
+
+Near-dupe now requires the same tool and known normalized resource. Fingerprints
+preserve case/syntax; punctuation/operator sequences must match, and the existing
+64-bit SimHash threshold remains at most 4 differing bits. Only the earlier output
+is superseded. Similarity is not semantic equivalence; exact-input dedup is unchanged.
+Legacy near-dupe decisions are discarded once because their resource/pair evidence
+was not stored. This restores potentially hidden content and may invalidate cache.
+
+New V2 source archives preserve original media/opaque part JSON outside text-token
+accounting, allowing recovery with a fresh plan after native compaction. Embedded
+payloads increase disk/memory use. Old marker-only archives cannot recover missing
+payloads and now error instead of silently omitting them. Media URLs restore their
+references, not remote bytes. Source archives have no new per-item size cap.
+
+Portable/remote handoff v1 rejects arbitrary V2 media/opaque parts and native prompt
+file descriptors rather than exporting incomplete text-only history. Supported V1
+attachments remain supported. Existing 64 MiB portable/history and 32 MiB remote
+transfer limits are unchanged; oversized captures must be narrowed, not truncated.
+
+Offload directories are created/tightened to 0700 and files atomically published
+as 0600. Workspace/system-temp ancestors are untouched; existing logs are tightened
+to 0600 on append. Snapshots, dashboard bootstrap HTML, migration backups and
+portable exports already use owner-only writes.
 
 ## Releasing
 
