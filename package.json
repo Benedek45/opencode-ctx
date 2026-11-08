@@ -1,6 +1,6 @@
 {
   "name": "opencode-ctx",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "OpenCode 2 context-management plugin: HOT/WARM/COLD compression tiers, model-driven compress tools, mechanical tool-output pruning, durable archives, and a local dashboard",
   "keywords": [
     "opencode",

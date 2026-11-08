@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- Documentation only: publish aggregate results of a conversation-recall
+  benchmark (8 long real sessions, 144 questions) comparing simulated native
+  OpenCode compaction with the ctx projection, with its method and limits. No
+  code changes.
+
 ## 1.0.1
 
 - Restrict near-duplicate pruning to a known same-tool, same-resource pair;
