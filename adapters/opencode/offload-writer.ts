@@ -1,8 +1,8 @@
 // PolyForm Noncommercial License 1.0.0 — see LICENSE
 // Failure-atomic adapter materialization for core offload requests.
 
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { chmod, lstat, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { basename, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Logger } from "../../services/logger.js";
 import type { NeutralMessage } from "../../types/neutral.js";
@@ -18,8 +18,25 @@ export async function materializeOffloadRequests(
   for (const request of requests) {
     const tmp = `${request.path}.${randomUUID()}.tmp`;
     try {
-      await mkdir(dirname(request.path), { recursive: true });
-      await writeFile(tmp, request.content, "utf8");
+      const sessionDir = dirname(request.path);
+      const rootDir = dirname(sessionDir);
+      if (basename(rootDir) === ".ctx-offload") {
+        for (const dir of [rootDir, sessionDir]) {
+          try {
+            const info = await lstat(dir);
+            if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("offload directory is not a real directory");
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
+        }
+      }
+      await mkdir(sessionDir, { recursive: true, mode: 0o700 });
+      // Only chmod the known plugin-owned tree, never workspace/temp ancestors.
+      if (basename(rootDir) === ".ctx-offload") {
+        await chmod(rootDir, 0o700);
+        await chmod(sessionDir, 0o700);
+      }
+      await writeFile(tmp, request.content, { encoding: "utf8", mode: 0o600, flag: "wx" });
       await rename(tmp, request.path);
     } catch (err) {
       failed.add(request.callId);

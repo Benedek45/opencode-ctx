@@ -36,6 +36,7 @@ import { hasPendingProjectionRewrite, recordProjectionEdit } from "./projectionE
 import { applyTierDemotions, expireTemporaryRetrievals, planTierDemotions } from "./contextTiers.js";
 import { cachePruneAllowed } from "./budget/costRoi.js";
 import { planCompressionCandidates } from "./compress/eligibility.js";
+import { upgradeNearDupeDecisions } from "./strategies/nearDupe.js";
 
 /** Services required by the pipeline. */
 export interface PipelineServices {
@@ -64,6 +65,11 @@ export function runPipeline(
   const { messages, state, config, nowMs } = input;
   const { workspaceDir } = services;
   const emit = services.telemetry;
+  const restoredCalls = new Set(upgradeNearDupeDecisions(state));
+  if (restoredCalls.size > 0) {
+    recordProjectionEdit(state, messages.filter(message => message.parts.some(part =>
+      part.type === "tool" && restoredCalls.has(part.callId))).map(message => message.id));
+  }
 
   // Counts completed pipeline projections, not user messages. Besides session
   // telemetry, adapters use this monotonic value to version exact persisted

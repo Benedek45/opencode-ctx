@@ -13,7 +13,7 @@ import type { CoreState } from "../types/state.js";
 import type { TelemetryEvent } from "../types/telemetry.js";
 import { runDedup } from "./strategies/dedup.js";
 import { runStaleError } from "./strategies/staleError.js";
-import { runNearDupe, estimateNearDupeSavings } from "./strategies/nearDupe.js";
+import { runNearDupe, estimateNearDupeSavings, upgradeNearDupeDecisions } from "./strategies/nearDupe.js";
 import { runObservationMask, type OffloadRequest } from "./strategies/observationMask.js";
 import { shouldTriggerMasking } from "./budget.js";
 import { cachePruneAllowed, recordCacheBust } from "./budget/costRoi.js";
@@ -55,6 +55,7 @@ export function runCascade(
   nowMs = 0,
   emit?: (event: TelemetryEvent) => void
 ): CascadeResult {
+  upgradeNearDupeDecisions(state);
   // Existing decisions are already reflected in the visible projection. They
   // still count toward the live budget, but are not new pruning candidates (or
   // valid "last occurrences" for dedup). Mark only their tool parts ineligible

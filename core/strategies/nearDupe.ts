@@ -35,12 +35,9 @@ import { findToolClassKey } from "../glob.js";
 const MIN_OUTPUT_CHARS_FOR_NEAR_DUPE = 200;
 
 /**
- * Default Hamming-distance threshold (out of 64 bits) for a fingerprint pair
- * to count as a near-duplicate. Google's web-scale system validated k=3 for
- * planet-scale precision across 8B pages; at per-session scale (dozens to low
- * hundreds of tool calls, not billions) false-collision risk is negligible, so
- * a slightly looser default trades a little precision for better recall on
- * partially-overlapping outputs (e.g. a superset file read).
+ * Default maximum differing bits (out of 64): 4. This is a similarity
+ * heuristic, NOT semantic equivalence. Additionally require the same resource
+ * and identical punctuation/operator token sequences; retain the later output.
  */
 const DEFAULT_HAMMING_THRESHOLD = 4;
 
@@ -68,9 +65,36 @@ function fnv1a64(str: string): bigint {
   return hash;
 }
 
-/** Tokenize text into lowercase alphanumeric word tokens. */
+/** Preserve identifier case and syntax; SimHash is similarity, not equivalence. */
 function tokenize(text: string): string[] {
-  return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  return text.match(/[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]+/gu) ?? [];
+}
+
+/** Lexical only: never conflate case, relative/absolute paths, or parent segments. */
+export function nearDupeResourceKey(input: unknown): string | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+  const fields = input as Record<string, unknown>;
+  const text = (key: string) => typeof fields[key] === "string" && (fields[key] as string).trim()
+    ? fields[key] as string : undefined;
+  const path = text("filePath") ?? text("file_path") ?? text("path");
+  const normalizedPath = path?.replace(/\\/g, "/").replace(/\/\.\//g, "/").replace(/^\.\//, "");
+  // Queries/commands need their scope too. Missing search scope is ambiguous.
+  const pattern = text("pattern");
+  if (pattern) return normalizedPath ? JSON.stringify(["search", pattern, normalizedPath]) : undefined;
+  const command = text("command");
+  if (command) return JSON.stringify(["command", command, text("workdir") ?? text("cwd") ?? ""]);
+  const url = text("url");
+  if (url) return JSON.stringify(["url", url]);
+  return normalizedPath ? JSON.stringify(["path", normalizedPath]) : undefined;
+}
+
+/** v1 decisions lack resource/pair evidence: discard once rather than replay unsafe masks. */
+export function upgradeNearDupeDecisions(state: CoreState): string[] {
+  if (state.nearDupeVersion === 2) return [];
+  const removed = [...state.nearDupeDecisions];
+  state.nearDupeDecisions.clear();
+  state.nearDupeVersion = 2;
+  return removed;
 }
 
 /** Build overlapping word k-shingles from a token list. */
@@ -122,7 +146,9 @@ function isStatelessTool(toolName: string, config: CoreConfig): boolean {
 interface Candidate {
   callId: string;
   tool: string;
+  resource: string;
   fingerprint: bigint;
+  syntax: string;
   outputChars: number;
 }
 
@@ -153,6 +179,8 @@ function detectNearDupes(
       if (isAlwaysProtected(part.tool)) continue;
       if (isWithinTieredRetention(part, currentTurn, config)) continue;
       if (!isStatelessTool(part.tool, config)) continue;
+      const resource = nearDupeResourceKey(part.input);
+      if (!resource) continue;
 
       const output = part.output ?? "";
       if (output.length < MIN_OUTPUT_CHARS_FOR_NEAR_DUPE) continue;
@@ -163,18 +191,21 @@ function detectNearDupes(
       candidates.push({
         callId: part.callId,
         tool: part.tool,
+        resource,
         fingerprint: simhash64(output),
+        syntax: tokenize(output).filter(token => /^[^\p{L}\p{N}_]+$/u.test(token)).join(" "),
         outputChars: output.length,
       });
     }
   }
 
-  // Group by tool name (comparing across different tools is meaningless).
+  // Group by exact tool name AND normalized resource; unknowns fail closed.
   const byTool = new Map<string, Candidate[]>();
   for (const c of candidates) {
-    const arr = byTool.get(c.tool) ?? [];
+    const key = JSON.stringify([c.tool, c.resource]);
+    const arr = byTool.get(key) ?? [];
     arr.push(c);
-    byTool.set(c.tool, arr);
+    byTool.set(key, arr);
   }
 
   // For each candidate, if a LATER candidate (same tool, document order) is
@@ -185,7 +216,8 @@ function detectNearDupes(
     for (let i = 0; i < group.length; i++) {
       if (supersededChars.has(group[i].callId)) continue;
       for (let j = i + 1; j < group.length; j++) {
-        if (hammingDistance64(group[i].fingerprint, group[j].fingerprint) <= hammingThreshold) {
+        if (group[i].syntax === group[j].syntax &&
+          hammingDistance64(group[i].fingerprint, group[j].fingerprint) <= hammingThreshold) {
           supersededChars.set(group[i].callId, group[i].outputChars);
           break;
         }
@@ -232,6 +264,7 @@ export function runNearDupe(
   hammingThreshold: number = DEFAULT_HAMMING_THRESHOLD,
   emit?: (event: TelemetryEvent) => void
 ): NearDupeResult {
+  upgradeNearDupeDecisions(state);
   const superseded = detectNearDupes(messages, currentTurn, config, state, hammingThreshold);
   if (superseded.size === 0) {
     return { messages, nearDupeCount: 0, newDecisionCount: 0, tokensSaved: 0 };

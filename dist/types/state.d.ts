@@ -187,6 +187,8 @@ export interface CoreState {
     staleErrorDecisions: Set<string>;
     /** Near-duplicate (SimHash) decisions: callIds whose output should be replaced with PLACEHOLDER_NEAR_DUPE. */
     nearDupeDecisions: Set<string>;
+    /** Missing = unsafe pre-resource/syntax fingerprint decisions; reset once. */
+    nearDupeVersion?: 2;
     /**
      * Mask/offload replacement text per callId.
      * Stored at decide time so re-apply can reproduce the exact placeholder text

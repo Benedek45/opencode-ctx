@@ -22,6 +22,7 @@ import { applyManualOverrides } from "../core/manualOverrides.js";
 import { buildCompressionIndex } from "../core/compress/transaction.js";
 import { deactivateCompressionBlock } from "../core/compress/reversible.js";
 import { estimateContextTokens } from "../core/tokens.js";
+import { contextToHost, sessionHistoryToHost } from "../adapters/opencode-v2/map.js";
 
 const dirs: string[] = [];
 afterEach(async () => { for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true }); });
@@ -69,6 +70,14 @@ async function destination(bundle: Awaited<ReturnType<typeof fixture>>["bundle"]
 }
 
 describe("durable context handoff", () => {
+  it("rejects V2 media/opaque and native prompt files rather than exporting incomplete context", async () => {
+    const state = createInitialState("source");
+    const media = contextToHost([{ id: "media", role: "user", content: [{ type: "text", text: "image" }, { type: "media", data: "YQ==" }] }], { sessionID: "source" }).entries;
+    const files = sessionHistoryToHost([{ id: "files", type: "user", text: "", files: [{ uri: "file:///x.png" }] }], "source");
+    for (const projectedEntries of [media, files]) {
+      await expect(collectHandoff({ state, projectedEntries }, new InMemoryContentStore(), { read: async () => new Uint8Array() })).rejects.toThrow("unsupported visible history part: v2-");
+    }
+  });
   it("does not multiply source scanning by thousands of unrelated registered offloads", async () => {
     const state = createInitialState("source");
     for (let i = 0; i < 1000; i++) state.messageIndex.set(`c${i}`, {

@@ -8,7 +8,7 @@
 // observationMask has its own cost-ROI gate.
 import { runDedup } from "./strategies/dedup.js";
 import { runStaleError } from "./strategies/staleError.js";
-import { runNearDupe, estimateNearDupeSavings } from "./strategies/nearDupe.js";
+import { runNearDupe, estimateNearDupeSavings, upgradeNearDupeDecisions } from "./strategies/nearDupe.js";
 import { runObservationMask } from "./strategies/observationMask.js";
 import { shouldTriggerMasking } from "./budget.js";
 import { cachePruneAllowed, recordCacheBust } from "./budget/costRoi.js";
@@ -27,6 +27,7 @@ import { PLACEHOLDER_DEDUP } from "./placeholders.js";
  * config.nudges.maskTriggerThreshold.
  */
 export function runCascade(messages, currentTurn, config, state, tokenizer, workspaceDir, nowMs = 0, emit) {
+    upgradeNearDupeDecisions(state);
     // Existing decisions are already reflected in the visible projection. They
     // still count toward the live budget, but are not new pruning candidates (or
     // valid "last occurrences" for dedup). Mark only their tool parts ineligible

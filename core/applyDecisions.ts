@@ -45,7 +45,7 @@ export function applyDecisions(
   const tiersEnabled = automaticPruning && options.contextTiers?.enabled === true && options.tokenizer !== undefined;
   const dedupDecisions = automaticPruning ? state.dedupDecisions : new Set<string>();
   const staleErrorDecisions = automaticPruning ? state.staleErrorDecisions : new Set<string>();
-  const nearDupeDecisions = automaticPruning ? state.nearDupeDecisions : new Set<string>();
+  const nearDupeDecisions = automaticPruning && state.nearDupeVersion === 2 ? state.nearDupeDecisions : new Set<string>();
   const maskDecisions = automaticPruning ? state.maskDecisions : new Map<string, string>();
   const hardCapDroppedIds = automaticPruning ? state.hardCapDroppedIds : new Set<string>();
   const { blockRegistry } = state;

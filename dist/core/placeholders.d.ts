@@ -9,7 +9,7 @@ export declare const PLACEHOLDER_STALE_ERROR_INPUT = "[input removed due to fail
  * set). Distinct wording from PLACEHOLDER_DEDUP since this is a similarity match,
  * not a byte-identical one.
  */
-export declare const PLACEHOLDER_NEAR_DUPE = "[Output removed to save context - near-duplicate of a later, more complete result for the same tool]";
+export declare const PLACEHOLDER_NEAR_DUPE = "[Output superseded by a later near-identical read of the same resource with the same tool]";
 /** Plain mask: output masked, tool call preserved, re-runnable. */
 export declare const PLACEHOLDER_PLAIN_MASK = "[Tool output masked to save context \u2014 older than the recency window. The tool call and its inputs are preserved; re-run the tool if this output is needed again.]";
 /**

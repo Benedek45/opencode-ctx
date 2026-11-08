@@ -17,7 +17,7 @@ export const PLACEHOLDER_STALE_ERROR_INPUT =
  * not a byte-identical one.
  */
 export const PLACEHOLDER_NEAR_DUPE =
-  "[Output removed to save context - near-duplicate of a later, more complete result for the same tool]";
+  "[Output superseded by a later near-identical read of the same resource with the same tool]";
 
 /** Plain mask: output masked, tool call preserved, re-runnable. */
 export const PLACEHOLDER_PLAIN_MASK =

@@ -10,6 +10,10 @@ export interface NearDupeResult {
     newDecisionCount: number;
     tokensSaved: number;
 }
+/** Lexical only: never conflate case, relative/absolute paths, or parent segments. */
+export declare function nearDupeResourceKey(input: unknown): string | undefined;
+/** v1 decisions lack resource/pair evidence: discard once rather than replay unsafe masks. */
+export declare function upgradeNearDupeDecisions(state: CoreState): string[];
 /** Compute a 64-bit Charikar SimHash fingerprint for a text. */
 export declare function simhash64(text: string): bigint;
 /** Hamming distance between two 64-bit fingerprints. */

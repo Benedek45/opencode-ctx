@@ -10,6 +10,9 @@ import {
   type V2Message,
 } from "../adapters/opencode-v2/map.js";
 import type { HostToolPart } from "../adapters/opencode/host-types.js";
+import { toNeutral } from "../adapters/opencode/map.js";
+import { estimateContextTokens } from "../core/tokens.js";
+import { CharTokenizer } from "../services/tokenizer.js";
 
 /** Stand-in for the host's `Schema.Class` Message: replacements must use its constructor. */
 class FakeMessage implements V2Message {
@@ -46,6 +49,25 @@ function conversation(): V2Message[] {
 }
 
 describe("opencode v2 context mapping", () => {
+  it("archives opaque parts without counting base64 as model text, prefers live stash and rejects legacy missing payloads", () => {
+    const media = { type: "media", media: { source: { type: "base64", data: "YQ==".repeat(10_000) } } };
+    const plan = contextToHost([msg({ id: U1, role: "user", content: [{ type: "text", text: "hello" }, media] })], { sessionID: "ses_1" });
+    const archived = JSON.parse(JSON.stringify(plan.entries));
+    const fresh = contextToHost([], { sessionID: "ses_1" });
+    expect(contextFromHost(archived, fresh)[0].content[1]).toEqual(media);
+    expect(estimateContextTokens(toNeutral(archived), new CharTokenizer())).toBeLessThan(100);
+    archived[0].parts[1].ctxV2.payload.part.media.source.data = "archive changed";
+    expect(contextFromHost(archived, plan)[0].content[1]).toBe(media);
+    delete archived[0].parts[1].ctxV2;
+    expect(() => contextFromHost(archived, fresh)).toThrow("V2 recovery payload unavailable");
+  });
+
+  it("retains native prompt files and assistant opaque parts for fail-closed handoff validation", () => {
+    const entries = sessionHistoryToHost([{ id: U1, type: "user", text: "", files: [{ uri: "file:///image.png", mime: "image/png" }] },
+      { id: A1, type: "assistant", content: [{ type: "effort", value: "high" }] }], "ses_1");
+    expect(entries[0].parts[0].type).toBe("v2-history-files");
+    expect(entries[1].parts[0].type).toBe("v2-effort");
+  });
   it("decodes creation time from V2 ascending ids", () => {
     expect(createdAtFromId(U1)).toBe(T0);
     expect(createdAtFromId("not-an-id")).toBeUndefined();

@@ -12,6 +12,8 @@ import type { V2Message } from "../adapters/opencode-v2/map.js";
 import { buildCompressionGuidance } from "../core/nudges.js";
 import { ALWAYS_PROTECTED_TOOLS } from "../core/defaults.js";
 import { FilePersistence } from "../adapters/opencode/services.js";
+import { FilesystemContentStore } from "../adapters/opencode/content-store.js";
+import { loadCompressionSource } from "../adapters/opencode/compression-archive.js";
 
 class FakeMessage implements V2Message {
   readonly id?: string;
@@ -257,6 +259,33 @@ describe("opencode v2 plugin binding", () => {
     expect(out.some(message => message.role === "tool")).toBe(false);
     expect(out.some(message => message.id === mid(100))).toBe(false);
     expect(out.some(message => message.id === mid(410))).toBe(true);
+  });
+
+  it("restores exact image and opaque JSON parts through source archive, host compaction and /ctx-decompress with a fresh plan", async () => {
+    const fake = await loadPlugin({ recencyGuardTurns: 1 });
+    const sessionID = "ses_media";
+    const image = { type: "media", media: { mime: "image/png", source: { type: "base64", data: "iVBORw0KGgo=" } }, providerMetadata: { test: { flag: true } } };
+    const opaque = { type: "effort", value: "high", nested: { retained: [1, "ExactCase", false] } };
+    const messages = [...turn(1, true), ...turn(2, false), ...turn(3, false), ...turn(4, false)];
+    messages[0] = msg({ id: mid(100), role: "user", content: [{ type: "text", text: "inspect image " + "context ".repeat(100) }, image, opaque] });
+    await runContext(fake, sessionID, messages);
+    const result = await fake.tools.find(tool => tool.name === "compress")!.execute({ topic: "Image task", content: [
+      { startId: "m0001", endId: "m0003", summary: "## Goal & Framework\nInspected the image." },
+    ] }, { sessionID, messageID: mid(410), agent: "build", id: "call_media_compress", signal: new AbortController().signal, progress: async () => undefined });
+    expect(String(result.content)).not.toMatch(/error|invalid|rejected/i);
+    const state = await new FilePersistence(join(fake.dir, "storage")).load(sessionID);
+    const block = state!.blockRegistry.get("b1")!;
+    const archived = await loadCompressionSource(new FilesystemContentStore(join(fake.dir, "storage")), block.durableSourceRef!, sessionID, "b1", block.effectiveMessageIds);
+    expect(JSON.stringify(archived)).toContain("iVBORw0KGgo=");
+    // No image-bearing message remains in the native re-feed; every context
+    // call constructs a new plan/stash, so only durable archive recovery can win.
+    const tail = [...turn(4, false), ...turn(5, false)];
+    await runContext(fake, sessionID, tail);
+    await fake.commands.find(command => command.name === "ctx-decompress")!.execute({ sessionID, prompt: { text: "b1" }, delivery: "steer" });
+    const restored = await runContext(fake, sessionID, tail);
+    const content = restored.find(message => message.id === mid(100))!.content;
+    expect(JSON.stringify(content.find(part => part.type === "media"))).toBe(JSON.stringify(image));
+    expect(JSON.stringify(content.find(part => part.type === "effort"))).toBe(JSON.stringify(opaque));
   });
 
   it("delivers /ctx-stats as a silent synthetic note and /ctx-compress as a model prompt", async () => {

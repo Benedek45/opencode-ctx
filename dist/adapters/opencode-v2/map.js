@@ -303,7 +303,21 @@ export function contextToHost(messages, options) {
         entries.push(entry);
         origins.set(id, { originalIndex: index, messages: group, raw: structuredClone(entry) });
     }
+    // Host entries, not this ephemeral plan, are serialized into source archives.
+    // Keep JSON payloads outside neutral text so media bytes do not inflate text
+    // token accounting or become masking candidates. Live stash always wins.
+    for (const entry of entries) {
+        entry.parts = entry.parts.map(part => {
+            const payload = stash.get(part.id);
+            return payload ? { ...part, ctxV2: { version: 1, payload: structuredClone(payload) } } : part;
+        });
+        origins.get(entry.info.id).raw = structuredClone(entry);
+    }
     return { entries, sessionID, passthrough, origins, stash, make };
+}
+function archivedStash(part) {
+    const archive = part.ctxV2;
+    return archive?.version === 1 ? archive.payload : undefined;
 }
 function toolState(status, input, output, title, time) {
     return status === "completed"
@@ -352,7 +366,7 @@ function rebuildEntry(entry, origin, plan) {
     const content = [];
     const toolMessages = [];
     for (const part of entry.parts) {
-        const stashed = plan.stash.get(part.id);
+        const stashed = plan.stash.get(part.id) ?? archivedStash(part);
         if (part.type === "text" || part.type === "reasoning") {
             const text = part.text;
             if (typeof text !== "string")
@@ -389,6 +403,8 @@ function rebuildEntry(entry, origin, plan) {
         // Opaque V2 parts (media, provider compaction, effort, ...) pass through unchanged.
         if (stashed?.part)
             content.push(stashed.part);
+        else if (part.type.startsWith("v2-"))
+            throw new Error(`V2 recovery payload unavailable for ${part.id} (${part.type})`);
     }
     const messages = [];
     if (content.length > 0) {
@@ -439,9 +455,14 @@ export function sessionHistoryToHost(history, sessionID, projectRoot = "") {
         return created;
     };
     const pushUser = (message, text, compaction = false) => {
-        if (!text)
+        const files = Array.isArray(message.files) && message.files.length > 0 ? message.files : undefined;
+        if (!text && !files)
             return;
-        const parts = [{ id: `${message.id}:0`, sessionID, messageID: message.id, type: "text", text }];
+        const parts = text ? [{ id: `${message.id}:0`, sessionID, messageID: message.id, type: "text", text }] : [];
+        // Native prompt file descriptors are not model-level media parts. Preserve
+        // them as an explicit unsupported record: handoff must reject, not omit files.
+        if (files)
+            parts.push({ id: `${message.id}:files`, sessionID, messageID: message.id, type: "v2-history-files", files: structuredClone(files) });
         if (compaction)
             parts.push({ id: `${message.id}:compaction`, sessionID, messageID: message.id, type: "compaction", auto: true });
         entries.push({ info: userInfo(message.id, sessionID, createdFor(message), lastModel), parts });
@@ -505,8 +526,11 @@ export function sessionHistoryToHost(history, sessionID, projectRoot = "") {
                         parts.push({ id: partId, sessionID, messageID: message.id, type: part.type, text: part.text });
                         return;
                     }
-                    if (part.type !== "tool" || typeof part.id !== "string")
+                    if (part.type !== "tool" || typeof part.id !== "string") {
+                        parts.push({ id: partId, sessionID, messageID: message.id, type: `v2-${part.type}`,
+                            ctxV2: { version: 1, payload: { part: structuredClone(part) } } });
                         return;
+                    }
                     const state = (part.state ?? {});
                     const input = inputRecord(state.input);
                     const name = typeof part.name === "string" ? part.name : "tool";

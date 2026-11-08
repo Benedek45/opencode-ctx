@@ -14,6 +14,7 @@ import {
   type RemoteContextBridge,
 } from "../adapters/opencode/remote-context-bridge.js";
 import type { HostMessageEntry, HostToolPart } from "../adapters/opencode/host-types.js";
+import { sessionHistoryToHost } from "../adapters/opencode-v2/map.js";
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -113,6 +114,12 @@ function bundleText(bytes: Uint8Array): string {
 }
 
 describe("remote context bridge", () => {
+  it("rejects native V2 files rather than silently capturing a text-only remote handoff", async () => {
+    const root = await temp();
+    const history = sessionHistoryToHost([{ id: "u-files", type: "user", text: "inspect image", files: [{ uri: "file:///image.png" }] }], "media-session");
+    await CtxPlugin(pluginInput(root, new Map([["media-session", history]])) as any, options(root));
+    await expect(bridge(root).capture({ sessionId: "media-session", directory: root, context: { mode: "full" } })).rejects.toThrow("unsupported visible history part: v2-history-files");
+  });
   it("replaces a stale same-owner exact-directory bridge on plugin reload", async () => {
     const directory = await temp();
     const worktree = await temp();

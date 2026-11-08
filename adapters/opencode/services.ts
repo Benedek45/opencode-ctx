@@ -8,7 +8,7 @@
 //   - ConsoleLogger: prefixed console output
 
 import { readFile, writeFile, rename, mkdir, rm, chmod } from "node:fs/promises";
-import { appendFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, statSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Tokenizer } from "../../services/tokenizer.js";
@@ -357,6 +357,7 @@ export function appendLogLine(filePath: string | undefined, level: string, messa
   if (!filePath) return;
   try {
     try {
+      chmodSync(filePath, 0o600);
       if (statSync(filePath).size > LOG_FILE_MAX_BYTES) writeFileSync(filePath, "", { mode: 0o600 });
     } catch { /* missing file is created below */ }
     const detail = args.map(arg => {
@@ -365,6 +366,7 @@ export function appendLogLine(filePath: string | undefined, level: string, messa
       try { return JSON.stringify(arg); } catch { return String(arg); }
     }).filter(text => text.length > 0).join(" ");
     appendFileSync(filePath, `${new Date().toISOString()} ${level} ${message}${detail ? ` ${detail}` : ""}\n`, { mode: 0o600 });
+    chmodSync(filePath, 0o600);
   } catch { /* logging must never break a turn */ }
 }
 

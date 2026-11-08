@@ -24,6 +24,7 @@ export function createInitialState(sessionId) {
         dedupDecisions: new Set(),
         staleErrorDecisions: new Set(),
         nearDupeDecisions: new Set(),
+        nearDupeVersion: 2,
         maskDecisions: new Map(),
         hardCapDroppedIds: new Set(),
         toolParameters: new Map(),

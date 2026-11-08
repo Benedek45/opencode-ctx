@@ -35,7 +35,7 @@ export function applyDecisions(messages, state, options = {}) {
     const tiersEnabled = automaticPruning && options.contextTiers?.enabled === true && options.tokenizer !== undefined;
     const dedupDecisions = automaticPruning ? state.dedupDecisions : new Set();
     const staleErrorDecisions = automaticPruning ? state.staleErrorDecisions : new Set();
-    const nearDupeDecisions = automaticPruning ? state.nearDupeDecisions : new Set();
+    const nearDupeDecisions = automaticPruning && state.nearDupeVersion === 2 ? state.nearDupeDecisions : new Set();
     const maskDecisions = automaticPruning ? state.maskDecisions : new Map();
     const hardCapDroppedIds = automaticPruning ? state.hardCapDroppedIds : new Set();
     const { blockRegistry } = state;

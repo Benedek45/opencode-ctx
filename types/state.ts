@@ -222,6 +222,8 @@ export interface CoreState {
 
   /** Near-duplicate (SimHash) decisions: callIds whose output should be replaced with PLACEHOLDER_NEAR_DUPE. */
   nearDupeDecisions: Set<string>;
+  /** Missing = unsafe pre-resource/syntax fingerprint decisions; reset once. */
+  nearDupeVersion?: 2;
 
   /**
    * Mask/offload replacement text per callId.
@@ -373,6 +375,7 @@ export function createInitialState(sessionId: string): CoreState {
     dedupDecisions: new Set(),
     staleErrorDecisions: new Set(),
     nearDupeDecisions: new Set(),
+    nearDupeVersion: 2,
     maskDecisions: new Map(),
     hardCapDroppedIds: new Set(),
 
