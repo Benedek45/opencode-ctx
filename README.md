@@ -8,11 +8,54 @@ catalog, and archive search searches summaries rather than original sources.
 
 ## Status / evaluation
 
-The release suite has no known failing tests. No task-level A/B benchmark against
-native OpenCode compaction has been published yet. The optional summary worker is
-validated with mocked lifecycle tests, not a live quality benchmark. For a
-controlled trial, pin a release and compare identical tasks/models with and without
-the plugin. See [CHANGELOG.md](CHANGELOG.md) for v1.0.1 fixes.
+The release suite has no known failing tests. The optional summary worker is
+validated with mocked lifecycle tests, not a live quality benchmark. See
+[CHANGELOG.md](CHANGELOG.md) for release notes.
+
+### Conversation-recall benchmark
+
+The plugin's claim is about communication, not task solving: in long, human-driven
+sessions the model should keep what the user said (rules, decisions and their
+reasons, rejected approaches, names, paths, preferences). Short automated coding
+benchmarks rarely reach compaction and carry everything in the task statement, so
+they do not test this.
+
+Method: 8 long real sessions (71–475 user turns) from the author's own work across
+different projects, frozen at their latest point. For each session three contexts
+were built:
+
+- **A — native compaction (simulated):** rolling OpenCode 2.2.6 compaction over the
+  raw history using the installed host's own summary prompts and its ~15,000-token
+  recent tail.
+- **B — ctx projection:** the exact context the plugin last sent the model.
+- **C — ctx at A's budget:** B reduced to A's token size (differs from B only where
+  B was larger than A; 3 of 8 sessions).
+
+144 questions (18 per session) were generated from the older 70% of each session,
+with evidence restricted to user messages; every evidence quote was verified
+verbatim by script and questions answerable from the shared recent tail were
+dropped. One answerer (DeepSeek V4.1 Flash) answered every question under each
+condition; a different model family (GLM) generated, reviewed and blind-judged.
+
+| Condition | Correct / partial / wrong / "not in context" | Strict accuracy [95% CI] | Mean context tokens |
+|---|---|---|---:|
+| A — native compaction (simulated) | 26 / 5 / 17 / 96 | 18.1% [7.6, 29.9] | ~334k |
+| B — ctx projection | 55 / 18 / 12 / 59 | 38.2% [22.9, 54.9] | ~194k |
+| C — ctx at A's budget | 53 / 16 / 10 / 65 | 36.8% [20.1, 55.6] | ~146k |
+
+Paired difference B−A: +20.1 points [1.4, 38.9]; C−A: +18.8 points [−0.7, 38.9]
+(hierarchical bootstrap over sessions, then questions). ctx scored higher in 7 of 8
+sessions. Most misses are abstentions: with native compaction the information was
+usually no longer in context, rather than misremembered.
+
+Limits: one author's sessions only; small sample (wide intervals); native
+compaction is a faithful-as-possible simulation, not a replay (exact scheduling,
+system prompts and tool schemas cannot be reconstructed); a single answerer; model
+generated and judged questions (a second-model audit agreed on 15 of 20
+judgments; no human review); the size control is weak because B was already
+smaller than A in 5 sessions. The transcripts and per-question data stay private;
+only these aggregates are published. Pin a release and run your own comparison
+before relying on it.
 
 ## Features
 
